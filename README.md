@@ -50,21 +50,21 @@ gemini mcp list   # For Gemini CLI
 ### CLI
 
 ```bash
-anno search 'Hanussen'                                          # first page, best matches first
-anno search '"Erik Jan Hanussen"' --from-year 1928 --to-year 1933
-anno search 'Cumberland Gedankenleser' --from-year 1884 --to-year 1888 --sort date_asc
-anno search 'Hellseher' --place Wien --title nwg --pages all
-anno snippets ANNO_dmo19330626 'Hanussen'                       # which page, in context
-anno get ANNO_dmo19330626 --page 7                              # cached OCR text path
+anno search 'Weltausstellung'                                    # first page, best matches first
+anno search '"Wiener Weltausstellung"' --from-year 1873 --to-year 1873
+anno search 'Ringstraße Neubau' --from-year 1865 --to-year 1875 --sort date_asc
+anno search 'Semmeringbahn' --place Wien --title nfp --pages all
+anno snippets ANNO_nfp18731202 'Ringstraße'                      # which page, in context
+anno get ANNO_nfp18731202 --page 3                               # cached OCR text path
 ```
 
 The workflow is search → `snippets` to find the page and judge it cheaply → `get` only what is worth reading. Add `--json` for machine-readable output.
 
-**Search resolves to an issue, not a page.** A result says "this issue of *Der Morgen* contains 59 hits"; `snippets` is what turns that into "page 7, and here is the sentence". That middle step is where most of the value is, because it is also enough to quote in a report.
+**Search resolves to an issue, not a page.** A result says "this issue of the *Neue Freie Presse* contains 7 hits"; `snippets` is what turns that into "page 3, and here is the sentence". That middle step is where most of the value is, because it is also enough to quote in a report.
 
-**Result totals are true match counts.** Unlike Gallica, ANNO filters rather than ranks: `Hanussen` reports 1385, `Hanussen AND Hellseher` 398, `Hanussen NOT Hellseher` 987 — and 398 + 987 = 1385 exactly. A total can therefore be quoted as a count, and `--sort date_asc` is safe on any query you intend to sweep.
+**Result totals are true match counts.** Unlike Gallica, ANNO filters rather than ranks: `Weltausstellung` reports 153,799, `Weltausstellung AND Ringstraße` 19,958, `Weltausstellung NOT Ringstraße` 133,841 — and 19,958 + 133,841 = 153,799 exactly. A total can therefore be quoted as a count, and `--sort date_asc` is safe on any query you intend to sweep.
 
-**Ten results per page, fixed.** ANNO offers no way to raise it, so sweeps are request-hungry: 1385 results is 139 requests. Combining variants into one `(A OR B OR C)` query is how you keep that down.
+**Ten results per page, fixed.** ANNO offers no way to raise it, so sweeps are request-hungry: 1,385 results is 139 requests. Combining variants into one `(A OR B OR C)` query is how you keep that down.
 
 Downloads are cached in `$XDG_CACHE_HOME/anno-mcp` (override with `--cache-dir` or `ANNO_CACHE_DIR`). The cache location does not depend on the working directory, so the CLI can be run from anywhere.
 

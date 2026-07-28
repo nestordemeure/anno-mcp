@@ -607,11 +607,30 @@ class AnnoClient:
         head = response.text[:1000].lstrip().lower()
         if head.startswith("<!doctype html") or head.startswith("<html"):
             raise RuntimeError(
-                f"ANNO served its HTML search page instead of JSON for {url}. The "
-                "most likely cause is endpoint drift: /anno-suche/rest is the "
-                "undocumented backend of the AnnoSearch app, and its paths can "
-                "change when the app is redeployed. Re-read the endpoint list out "
-                "of the app's JavaScript bundle."
+                f"ANNO served its HTML search page instead of JSON for {url}.\n"
+                "\n"
+                "This is almost certainly endpoint drift, which is a bug in this "
+                "tool rather than a problem with your query or a transient "
+                "failure. /anno-suche/rest is the undocumented backend of the "
+                "AnnoSearch single-page app: when the app is redeployed its paths "
+                "can move, and the server answers a path that no longer exists by "
+                "serving the app's HTML shell with HTTP 200 instead of a 404.\n"
+                "\n"
+                "Retrying will not help, and neither will rewording the search. "
+                "If you are an agent that hit this mid-research:\n"
+                "  1. Stop querying ANNO and tell the user what happened — the "
+                "source is unavailable until the client is fixed, so any report "
+                "you write must say ANNO was not searched.\n"
+                "  2. Re-derive the endpoints: fetch https://anno.onb.ac.at/anno-suche, "
+                "find the hashed bundle it loads (main-<HASH>.js), and search it "
+                "for `apiUrl` and the /search/ paths near it.\n"
+                "  3. Fix SEARCH_BASE_URL (and the /search/complex, /search/snippet "
+                "paths that hang off it) in this client's client.py, verify with "
+                "one live search, and commit the fix to the anno-mcp repository so "
+                "the next session does not rediscover it.\n"
+                "\n"
+                "This message is the drift signal described in anno-mcp's "
+                "CLAUDE.md; there is no other symptom to look for."
             )
 
     async def _rate_limited_get(self, url: str, **kwargs: Any) -> httpx.Response:
