@@ -16,7 +16,7 @@ import json
 import sys
 from typing import Any
 
-from .client import DEFAULT_SORT, RESULTS_PER_PAGE, SORT_ORDERS, AnnoClient
+from .client import DEFAULT_SORT, FORMATS, RESULTS_PER_PAGE, SORT_ORDERS, AnnoClient
 from .paths import cache_dir
 
 PROGRAM_NAME = "anno"
@@ -124,6 +124,7 @@ async def run_search(args: argparse.Namespace) -> int:
                 place=args.place,
                 language=args.language,
                 subject=args.subject,
+                medium=args.format,
                 sort=args.sort,
             )
 
@@ -261,9 +262,40 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="ACRONYM",
         help="restrict to one title by its acronym, e.g. nwg (Neues Wiener Tagblatt)",
     )
-    search.add_argument("--place", metavar="PLACE", help="place of publication, e.g. Wien")
-    search.add_argument("--language", metavar="CODE", help="language code: ger, hun, cze, slo")
-    search.add_argument("--subject", metavar="TEXT", help="subject/theme, e.g. Tageszeitung")
+    search.add_argument(
+        "--place",
+        metavar="PLACE",
+        help=(
+            "place of publication, copied verbatim from the facet, e.g. Wien or "
+            "'Praha (Prag)'. A near-miss silently selects the wrong set rather "
+            "than failing: 'Prag' is itself a valid but nearly empty place"
+        ),
+    )
+    search.add_argument(
+        "--language",
+        metavar="CODE",
+        help="language code, e.g. ger, hun, cze, slo, ita, pol, hrv, slv, heb, epo",
+    )
+    search.add_argument(
+        "--subject",
+        metavar="TEXT",
+        help=(
+            "subject/theme, e.g. Tageszeitung, Satire, Theater, Musik. Publication "
+            "frequency lives here too: Tageszeitung, Wochenzeitung"
+        ),
+    )
+    search.add_argument(
+        "--format",
+        choices=FORMATS,
+        default=None,
+        dest="format",
+        help=(
+            "material type. 'newspaper' (ANNO's own value for it is 'journal') "
+            "selects Zeitungen, whose OCR text 'anno get' can download; "
+            "'periodical' selects Zeitschriften, which have snippets only. The "
+            "two partition the results exactly"
+        ),
+    )
     search.add_argument(
         "--sort",
         choices=SORT_ORDERS,

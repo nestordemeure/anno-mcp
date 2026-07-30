@@ -35,6 +35,25 @@ SORT_VALUES = {
 SORT_ORDERS = tuple(SORT_VALUES)
 DEFAULT_SORT = "relevance"
 
+# ANNO's `type` facet - "Medium" in its sidebar - has exactly two values, and
+# ANNO's own spelling of one of them is a trap in English: `journal` means
+# *Zeitung*, a newspaper, not a journal in the periodical sense. `newspaper` is
+# accepted as a synonym so that the obvious word does not select the opposite
+# half of the archive, and because it is the vocabulary the sibling clients use.
+#
+# The split matters here more than a metadata facet usually would: it is exactly
+# the ANNO_/ANNOP_ owner split, so `journal` is the half whose OCR text
+# `download_text` can fetch and `periodical` is the half it refuses. Verified
+# live: `Hanussen` gives 1385 unfiltered, 1339 as `journal`, 46 as `periodical`,
+# and every record under each is `ANNO_`/Zeitung and `ANNOP_`/Zeitschrift
+# respectively.
+FORMAT_VALUES = {
+    "newspaper": "journal",
+    "journal": "journal",
+    "periodical": "periodical",
+}
+FORMATS = tuple(FORMAT_VALUES)
+
 # ANNO fixes the result page size server-side and exposes no parameter for it.
 # Ten is what it returns; the first page returns nine because hit numbering is
 # 1-based while `from` is 0-based, so hit 0 does not exist. Nothing is skipped.
@@ -115,6 +134,7 @@ class AnnoClient:
         place: str | None = None,
         language: str | None = None,
         subject: str | None = None,
+        medium: str | None = None,
         sort: str = DEFAULT_SORT,
     ) -> dict[str, Any]:
         """Search ANNO's full text.
@@ -133,9 +153,13 @@ class AnnoClient:
             title: Title acronym to restrict to, e.g. `nwg`. This is a strict
                 facet filter, not the loose `title=` text field - see
                 `_build_search_params`.
-            place: Place of publication, e.g. `Wien`
+            place: Place of publication, copied verbatim from the facet, e.g.
+                `Wien` or `Praha (Prag)`
             language: Language code, e.g. `ger`
             subject: Subject/theme, e.g. `Tageszeitung`
+            medium: Material type, one of FORMATS. `newspaper`/`journal` selects
+                Zeitungen (`ANNO_`, OCR text downloadable), `periodical` selects
+                Zeitschriften (`ANNOP_`, snippets only).
             sort: Result ordering, one of SORT_ORDERS (default relevance)
 
         Returns:
@@ -161,6 +185,7 @@ class AnnoClient:
             place=place,
             language=language,
             subject=subject,
+            medium_facet=self._resolve_format(medium),
             sort=sort,
         )
 
@@ -190,6 +215,27 @@ class AnnoClient:
             "documents": documents,
         }
 
+    @staticmethod
+    def _resolve_format(value: str | None) -> str | None:
+        """Map a caller's material type onto ANNO's own `type` facet value.
+
+        Rejects an unknown name rather than passing it through, because ANNO
+        answers an unrecognised facet value with HTTP 200 and `totalHits: 0`.
+        Asking for `Zeitung` - the German label ANNO itself displays for
+        `journal` - therefore looks like a genuine "no such material" answer
+        instead of the typo it is.
+        """
+        if value is None or not value.strip():
+            return None
+        key = value.strip().lower()
+        if key not in FORMAT_VALUES:
+            raise ValueError(
+                f"Unknown format {value!r}; expected one of {', '.join(FORMATS)}. "
+                "Note that ANNO's displayed German labels (Zeitung, Zeitschrift) "
+                "are not accepted values - they return zero results silently."
+            )
+        return FORMAT_VALUES[key]
+
     def _build_search_params(
         self,
         query: str,
@@ -200,6 +246,7 @@ class AnnoClient:
         place: str | None,
         language: str | None,
         subject: str | None,
+        medium_facet: str | None,
         sort: str,
     ) -> list[tuple[str, str]]:
         """Assemble the query string for `/search/complex`.
@@ -207,13 +254,19 @@ class AnnoClient:
         Returned as a list of pairs rather than a dict because `selectedFilters`
         repeats, once per facet constraint.
 
-        Title and place go through `selectedFilters` rather than through the
-        endpoint's own `title=` and `place=` fields. Those fields are not
-        filters: ANNO's own help states that choosing a title "does not
-        automatically search only in that title - instead the filter's text is
-        used", i.e. the value is folded into the free-text query. Searching
-        `Hanussen` restricted to `nwg` returns 97 issues through
-        `selectedFilters` and something quite different through `title=`.
+        Title, place and material type go through `selectedFilters` rather than
+        through a field of their own. For title and place that is because the
+        endpoint's `title=` and `place=` fields are not filters: ANNO's own help
+        states that choosing a title "does not automatically search only in that
+        title - instead the filter's text is used", i.e. the value is folded into
+        the free-text query. Searching `Hanussen` restricted to `nwg` returns 97
+        issues through `selectedFilters` and something quite different through
+        `title=`. For material type it is because no `type=` field exists at all:
+        the app never sends one, and passing `type=journal` is accepted and
+        silently ignored - `Hanussen` still reports all 1385 hits.
+
+        `medium_facet` is already ANNO's own facet value, resolved by
+        `_resolve_format`, not the caller's spelling of it.
         """
         params: list[tuple[str, str]] = []
 
@@ -231,7 +284,11 @@ class AnnoClient:
         if subject:
             params.append(("subject", subject.strip()))
 
-        for facet_type, value in (("title", title), ("place", place)):
+        for facet_type, value in (
+            ("type", medium_facet),
+            ("title", title),
+            ("place", place),
+        ):
             if value:
                 params.append(("selectedFilters", f"{facet_type}:{value.strip()}"))
 

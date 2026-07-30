@@ -17,9 +17,11 @@ anno snippets <documentId> "<query>"   # which page of an issue, in context
 anno get <documentId> [--page N]       # OCR text, prints path to the cached file
 ```
 
-Filters for `search`: `--from-year`, `--to-year`, `--title ACRONYM`, `--place PLACE`, `--language CODE` (`ger`, `hun`, `cze`, `slo`), `--subject TEXT`.
+Filters for `search`: `--from-year`, `--to-year`, `--title ACRONYM`, `--place PLACE`, `--language CODE`, `--subject TEXT`, `--format {newspaper,periodical}`.
 
 `--sort` takes `relevance` (default), `date_asc` or `date_desc`.
+
+These six are **all** of ANNO's facets — the search sidebar has exactly six groups and every one is wired up. There is deliberately no `--provider`, `--collection` or `--genre` flag: ANNO is a single-provider archive (the ÖNB holds all of it) with a flat structure, so those facets do not exist rather than being unimplemented. Publication frequency is not a facet either; it lives inside `--subject`, as `Tageszeitung` and `Wochenzeitung`.
 
 **Search resolves to an issue, not a page.** A result says *this issue of Der Morgen contains 59 hits*; `snippets` is what turns that into *page 7, and here is the sentence*. That middle step carries most of the value on this source, and it is usually enough to quote in a report without downloading anything:
 
@@ -65,6 +67,33 @@ Narrow before sweeping. `--from-year`/`--to-year` work correctly (verified: a 18
 
 Title acronyms are the three-letter codes in the document ids: `nwg` (Neues Wiener Tagblatt), `nfp` (Neue Freie Presse), `nwj` (Neues Wiener Journal), `waz` (Wiener Allgemeine Zeitung), `dmo` (Der Morgen), `aze` (Arbeiter Zeitung), `fig` (Figaro), `flo` (Der Floh).
 
+**The facets are catalogue metadata, so they are immune to the OCR damage below.** This is the reason to reach for them. A search *term* can be destroyed by Fraktur — letterspacing shatters a name, a long ſ becomes an f, a line break splits a word — but `--format`, `--title`, `--place`, `--language`, `--subject` and the year bounds are all read from the ÖNB's own catalogue and never from the page image. Narrowing by facet loses nothing; narrowing by adding a second search term can lose a great deal. So when a query is too broad, prefer a facet over an extra keyword.
+
+### `--format`: newspapers or periodicals
+
+Two values, and they partition the results exactly:
+
+| Filter | `Hanussen` |
+|---|---|
+| (none) | 1385 |
+| `--format newspaper` | 1339 |
+| `--format periodical` | 46 |
+
+1339 + 46 = 1385. The split is not cosmetic — it is exactly the `ANNO_`/`ANNOP_` split, so it tells you in advance which half of a result set you can download OCR text for:
+
+- `--format newspaper` — *Zeitungen*, ids `ANNO_`, `anno get` works.
+- `--format periodical` — *Zeitschriften*, ids `ANNOP_`, `anno get` refuses them and `snippets` is the only way in.
+
+Both are useful. Use `--format newspaper` when you intend to download and read pages, and `--format periodical` to go straight at the illustrated, satirical and trade weeklies — which on this subject are often the richest material, and which a relevance-ordered sweep of 1385 newspaper-dominated results would bury.
+
+ANNO's own value for *Zeitung* is the confusing `journal`; the CLI accepts both `newspaper` and `journal` for it, so pick `newspaper` and do not be misled if you see `journal` in the API. `--format Zeitung` is rejected with a message rather than silently returning zero.
+
+### Facet values are verbatim, and a near-miss lies to you
+
+`--place` is the one to watch. The value for Prague is `Praha (Prag)`, and `--place 'Praha (Prag)'` cuts `Hanussen` to 45. But `--place Prag` is *also* accepted and returns **1** — because `Prag` is a separate, nearly-empty place value in ANNO's index. A small plausible number, not an error. Copy place, subject and title values from a result you already have rather than translating or guessing them.
+
+`--language` takes an ISO 639-2 code and ANNO holds 24 of them: `ger` dominates, then `hun`, `cze`, `slo`, `slv`, `hrv`, `ita`, `pol`, `heb`, `epo` and more.
+
 ## False positives to expect
 
 Austrian OCR is Fraktur, and it fails in ways that are specific enough to be worth memorising.
@@ -101,7 +130,7 @@ A search for `Schlesinger` does not find that page. The defence is to expect it:
 
 ## Traps specific to this source
 
-- **Periodicals have no OCR download.** Document ids beginning `ANNOP_` (`Zeitschrift`, shown in search output as *periodical — no OCR download*) are searchable and have working snippets, but ANNO exposes no text endpoint for them at all — the viewer has no "Text" button and the CGI crashes on their references. `anno get` refuses them with an explanation and costs no request. **Use `snippets` for periodicals**; they are fully usable that way, and the satirical and trade weeklies that live in this class are often the most interesting material.
+- **Periodicals have no OCR download.** Document ids beginning `ANNOP_` (`Zeitschrift`, shown in search output as *periodical — no OCR download*) are searchable and have working snippets, but ANNO exposes no text endpoint for them at all — the viewer has no "Text" button and the CGI crashes on their references. `anno get` refuses them with an explanation and costs no request. **Use `snippets` for periodicals**; they are fully usable that way, and the satirical and trade weeklies that live in this class are often the most interesting material. `--format periodical` / `--format newspaper` lets you decide which half you are looking at before you spend anything.
 - **`get` is priced per page, not per document.** ANNO serves OCR one page at a time and offers no whole-issue endpoint, so `anno get` without `--page` costs one paced request per page — a 16-page issue is about a minute, a 104-page issue over five. Run `snippets` first and then `anno get <id> --page N`. This is the single biggest efficiency win available on this source.
 - **Snippets are capped at 10 per issue** however many hits are reported. An issue reporting 59 hits returns a sample, not the lot. For heavily-covered issues, download the page.
 - **The first result page holds 9, not 10.** Hit numbering is 1-based while the offset is 0-based, so page 1 is hits 1–9 and page 2 is hits 10–19. Nothing is skipped.

@@ -5,7 +5,7 @@ MCP server for [ANNO](https://anno.onb.ac.at/) (AustriaN Newspapers Online), the
 - **search_anno**: Full-text search with AND/OR/NOT, exact phrases and wildcards. Results resolve to an issue, with the number of hits inside it.
 - **get_snippets**: The page-level step — which page of an issue a term appears on, with the match in context and a citation URL for that exact page.
 - **download_text**: OCR plain text for a newspaper issue or a single page of it, cached locally.
-- **advanced_search_anno**: Search with date, title, place, language and subject filters.
+- **advanced_search_anno**: Search with date, title, place, language, subject and medium filters.
 
 There are two ways to use it: an **MCP server** for clients that speak MCP, and an **`anno` CLI** for agents driven through a shell. Both share one client, one cache and one set of behaviours. The CLI is what the bundled `anno-search` skill uses, and it exposes every filter unconditionally rather than hiding them behind an install flag.
 
@@ -54,15 +54,20 @@ anno search 'Weltausstellung'                                    # first page, b
 anno search '"Wiener Weltausstellung"' --from-year 1873 --to-year 1873
 anno search 'Ringstraße Neubau' --from-year 1865 --to-year 1875 --sort date_asc
 anno search 'Semmeringbahn' --place Wien --title nfp --pages all
+anno search 'Weltausstellung' --format periodical                # illustrated & trade weeklies only
 anno snippets ANNO_nfp18731202 'Ringstraße'                      # which page, in context
 anno get ANNO_nfp18731202 --page 3                               # cached OCR text path
 ```
+
+Filters: `--from-year`, `--to-year`, `--title`, `--place`, `--language`, `--subject`, `--format`, `--sort`. Facet values are taken verbatim, so copy them from a result rather than translating them — the place value for Prague is `Praha (Prag)`, and `Prag` is a different, nearly empty one.
+
+**`--format` splits the archive in the way that matters for cost.** It takes `newspaper` (ANNO's own value for it is `journal`) or `periodical`, and the two partition the results exactly: `Weltausstellung` reports 153,804, of which 145,799 are newspapers and 8,005 periodicals. The split is worth knowing because only newspapers have an OCR text endpoint — `--format periodical` selects precisely the material `anno get` will refuse, and `--format newspaper` precisely the material it will serve.
 
 The workflow is search → `snippets` to find the page and judge it cheaply → `get` only what is worth reading. Add `--json` for machine-readable output.
 
 **Search resolves to an issue, not a page.** A result says "this issue of the *Neue Freie Presse* contains 7 hits"; `snippets` is what turns that into "page 3, and here is the sentence". That middle step is where most of the value is, because it is also enough to quote in a report.
 
-**Result totals are true match counts.** Unlike Gallica, ANNO filters rather than ranks: `Weltausstellung` reports 153,799, `Weltausstellung AND Ringstraße` 19,958, `Weltausstellung NOT Ringstraße` 133,841 — and 19,958 + 133,841 = 153,799 exactly. A total can therefore be quoted as a count, and `--sort date_asc` is safe on any query you intend to sweep.
+**Result totals are true match counts.** Unlike Gallica, ANNO filters rather than ranks: `Weltausstellung` reports 153,804, `Weltausstellung AND Ringstraße` 19,958, `Weltausstellung NOT Ringstraße` 133,846 — and 19,958 + 133,846 = 153,804 exactly. A total can therefore be quoted as a count, and `--sort date_asc` is safe on any query you intend to sweep.
 
 **Ten results per page, fixed.** ANNO offers no way to raise it, so sweeps are request-hungry: 1,385 results is 139 requests. Combining variants into one `(A OR B OR C)` query is how you keep that down.
 

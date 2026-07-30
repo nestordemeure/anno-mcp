@@ -9,7 +9,7 @@ MCP server for searching and retrieving newspapers from ANNO (AustriaN Newspaper
 ## Functionality
 
 - **Fulltext search** with boolean operators (AND, OR, NOT), exact phrases and trailing wildcards
-- **Filters** for date range, title, place, language and subject
+- **Filters** for date range, title, place, language, subject and medium (newspaper vs periodical)
 - **Page-level KWIC snippets** resolving a hit to a page of an issue, with citation URLs and IIIF crops
 - **OCR text download** per page or per issue, with local caching
 - **Pagination** at a server-fixed 10 results per page
@@ -60,12 +60,33 @@ Everything goes through `/search/complex`, including unfiltered queries. `/searc
 |---|---|
 | `text` | the query |
 | `dateFrom` / `dateTo` | year or full date bounds |
-| `language` | `ger`, `hun`, `cze`, `slo` |
+| `language` | one of 24 codes, e.g. `ger`, `hun`, `cze`, `slo`, `ita`, `hrv` |
 | `subject` | theme, e.g. `Tageszeitung` |
 | `selectedFilters` | facet constraints, repeatable, `type:value` |
 | `sort` | `date asc` / `date desc`; omit for relevance |
 | `from` | 0-based record offset |
 | `facets` | `true` |
+
+That table is the whole parameter surface, and it is authoritative rather than guessed: the Angular bundle's `searchComplex()` builds its request from exactly `text`, `title`, `place`, `language`, `subject`, `dateFrom`, `dateTo`, `sort`, `selectedFilters`, `from` and `facets`, and nothing else. Any other field name is accepted and ignored.
+
+## Facets
+
+`/search/complex/config` is the facet-listing endpoint and one request answers "what can be filtered on": `minDate` (1527-01-01), `maxDate`, and the full vocabulary of `titles` (1,566), `places` (231), `subjects` (65) and `languages` (24 codes, mapped to German names). It is what the search form's autocompletes are built from, so it should be consulted before guessing a value.
+
+Every search with `facets=true` also returns `filterGroups`, the sidebar. There are exactly **six** groups and no more:
+
+| Group | Label | Reached by |
+|---|---|---|
+| `TYPE` | Medium | `selectedFilters=type:journal` / `type:periodical` |
+| `TITLE` | Titel | `selectedFilters=title:<acronym>` |
+| `PLACE` | Erscheinungsort | `selectedFilters=place:<value>` |
+| `LANGUAGE` | Sprache | `language=<code>` |
+| `DATE` | Zeitraum | `dateFrom` / `dateTo` (finer than the facet's five fixed buckets) |
+| `SUBJECT_FACET` | Thema | `subject=<value>` |
+
+All six are exposed by this client. There is **no** facet for provider, collection, publication frequency or genre, because ANNO is a single-provider archive with a flat structure — the ÖNB holds everything in it. Frequency is not missing so much as folded into `subject`, whose vocabulary includes `Tageszeitung` and `Wochenzeitung`.
+
+A group vanishes from `filterGroups` once it is filtered on, which is ordinary sidebar behaviour and not a signal.
 
 ## Result Ordering
 
@@ -110,6 +131,10 @@ The corresponding `uid` objects differ too: `ANNO` carries `annoDate.date`, `ANN
 - **A whole-issue fetch does not exist.** `annoshow?text=dmo|19330626` is HTTP 400, and so is a page range like `|1-3`. Pages must be walked one request at a time, which is why `get` is priced per page and why `--page` matters so much.
 - **There is no page-count field to walk against**, so the end of an issue is found by walking into it. Any page past the end returns **HTTP 200 with the header line and no body** — not a 404. A single empty page is not proof of the end, because blank plates occur mid-issue, so `_fetch_issue_text` stops only after `EMPTY_PAGE_RUN_TO_STOP` consecutive empties and discards trailing ones. Search results do carry `pageCount`, but `get <id>` alone has not seen them.
 - **Stripping the soft hyphen is not enough — the line break has to go with it.** ANNO marks hyphenation with U+00AD immediately before the newline, so the raw text holds `ein\xad\nzige`. Deleting only the soft hyphen leaves `ein\nzige`, which still does not match `einzige`, so a local grep would miss exactly the occurrences the search index found. `_clean_ocr_text` joins the two. Ordinary hyphens at a line end are deliberately left alone, since `Hoch-Räthseln` is a real compound.
+- **There is no `type=` field, and passing one is silently ignored.** The medium facet is reachable *only* through `selectedFilters=type:journal|periodical`. `text=Hanussen&type=journal` returns all 1385 hits, not the 1339 newspapers — an unrecognised field name is accepted and dropped, so a filter that looks applied may not be. Verified: `selectedFilters=type:journal` gives 1339, `type:periodical` gives 46, and 1339 + 46 = 1385 exactly.
+- **`type:journal` means newspaper, not journal.** ANNO's two facet values are `journal` (displayed *Zeitung*) and `periodical` (displayed *Zeitschrift*), so the English reading of `journal` selects the opposite half of the archive from what it suggests. `FORMAT_VALUES` accepts `newspaper` as a synonym for exactly this reason. The split is precisely the `ANNO_`/`ANNOP_` owner split — verified by walking two result pages of each, where `type:journal` returned only `ANNO_`/Zeitung records and `type:periodical` only `ANNOP_`/Zeitschrift — so `medium="periodical"` selects exactly the set `download_text` refuses.
+- **A wrong facet value returns HTTP 200 and zero hits, not an error.** `selectedFilters=type:Zeitung` — ANNO's own displayed German label — reports `totalHits: 0`, indistinguishable from a genuine empty result. `_resolve_format` therefore validates before sending rather than passing a name through.
+- **Facet values are verbatim, and a near-miss on `place` is worse than a typo.** The facet value for Prague is `Praha (Prag)`, while `/search/complex/config`'s `places` list holds `Prag` and `Praha ` as separate entries — the config list is the autocomplete vocabulary for the loose `place=` text field, **not** the facet vocabulary. `selectedFilters=place:Praha (Prag)` gives 45 hits on `Hanussen`; `place:Prag` gives **1**, because `Prag` is also a real but nearly empty place value. A plausible-looking small number is the failure mode, so place values must be copied from a result's own facet.
 - **`title=` and `place=` on `/search/complex` are not filters.** ANNO's own help states that choosing a title "does not automatically search only in that title — instead the filter's text is used", i.e. the value is folded into the free-text query. Real filtering goes through repeated `selectedFilters=type:value` parameters. `Hanussen` restricted via `selectedFilters=title:nwg` gives 97; the `title=` field gives something else entirely.
 - **Endpoint drift returns HTTP 200 carrying the Angular HTML shell**, not a 404, because `/anno-suche/rest` is the private backend of a single-page app. Undetected this surfaces as an opaque JSON decode error. `_raise_for_html_shell` catches it and names the likely cause.
 - **The first result page holds 9 records, not 10.** Hit numbering is 1-based while `from` is 0-based, so `from=0` yields hits 1–9 and `from=10` yields 10–19. Nothing is skipped; the offset arithmetic `(page - 1) * 10` is correct.

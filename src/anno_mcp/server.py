@@ -103,9 +103,10 @@ if ENABLE_ADVANCED_SEARCH:
         place: str | None = None,
         language: str | None = None,
         subject: str | None = None,
+        medium: str | None = None,
         sort: str = DEFAULT_SORT,
     ) -> dict:
-        """Search ANNO with filters for date, title, place, language and subject.
+        """Search ANNO with filters for date, title, place, language, subject and medium.
 
         Args:
             query: Same syntax as search_anno. Empty string filters only.
@@ -114,9 +115,17 @@ if ENABLE_ADVANCED_SEARCH:
             to_year: Latest year, inclusive. Example: 1935
             title: Title acronym to restrict to, e.g. "nwg" for Neues Wiener
                 Tagblatt. This is a strict filter on the title facet.
-            place: Place of publication, e.g. "Wien", "Graz", "Linz"
-            language: Language code: "ger", "hun", "cze", "slo"
-            subject: Subject/theme, e.g. "Tageszeitung", "Exilpresse"
+            place: Place of publication, copied verbatim from the facet, e.g.
+                "Wien", "Graz", "Praha (Prag)". A near-miss such as "Prag"
+                silently selects a different, nearly empty place.
+            language: Language code, e.g. "ger", "hun", "cze", "slo", "ita"
+            subject: Subject/theme, e.g. "Tageszeitung", "Exilpresse". Publication
+                frequency lives here too: "Tageszeitung", "Wochenzeitung".
+            medium: Material type: "newspaper" (ANNO's own value is "journal")
+                for Zeitungen, whose OCR text download_text can fetch, or
+                "periodical" for Zeitschriften, which have snippets only. The two
+                partition the results exactly. ANNO's German labels "Zeitung" and
+                "Zeitschrift" are rejected rather than silently returning zero.
             sort: "relevance" (default), "date_asc" or "date_desc"
 
         Returns:
@@ -126,6 +135,7 @@ if ENABLE_ADVANCED_SEARCH:
             advanced_search_anno(query="Cumberland Gedankenleser", from_year=1884, to_year=1888)
             advanced_search_anno(query="Hanussen", title="nwg")
             advanced_search_anno(query="Hellseher", place="Wien", from_year=1920, to_year=1933)
+            advanced_search_anno(query="Hanussen", medium="periodical")
         """
         client = get_client()
         return await client.search(
@@ -137,6 +147,7 @@ if ENABLE_ADVANCED_SEARCH:
             place=place,
             language=language,
             subject=subject,
+            medium=medium,
             sort=sort,
         )
 
@@ -221,7 +232,8 @@ Available Tools:
 - search_anno(query, page, sort): Search OCR text; results resolve to issues
 - get_snippets(identifier, query): Page-level KWIC with citation URLs
 - download_text(identifier, page): OCR plain text, cached locally
-- advanced_search_anno(...): Search with date, title, place, language filters
+- advanced_search_anno(...): Search with date, title, place, language, subject
+  and medium (newspaper vs periodical) filters
 
 Query Syntax:
 - Bare words are ANDed; AND, OR, NOT must be UPPERCASE
