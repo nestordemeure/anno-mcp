@@ -1,6 +1,6 @@
 ---
 name: anno-search
-description: Search ANNO (AustriaN Newspapers Online), the historical newspaper archive of the Österreichische Nationalbibliothek, with the `anno` CLI. Use it for the German-language Austrian and Central European press — Vienna above all — and for the Austro-Hungarian reports about performers who travelled.
+description: Search ANNO (AustriaN Newspapers Online), the historical newspaper archive of the Österreichische Nationalbibliothek, with the `anno` CLI. Use it for the German-language Austrian and Central European press (Vienna above all), and for the Austro-Hungarian reports about performers who travelled.
 ---
 
 # ANNO
@@ -83,8 +83,8 @@ There are two values, and they divide the results exactly:
 
 1339 + 46 = 1385. This division is important, because it is exactly the `ANNO_` and `ANNOP_` division. Thus it tells you in advance which half of a result set has an OCR download:
 
-- `--format newspaper` — *Zeitungen*, identifiers `ANNO_`, and `anno get` operates.
-- `--format periodical` — *Zeitschriften*, identifiers `ANNOP_`. `anno get` refuses them, and `snippets` is the only method of access.
+- `--format newspaper`: *Zeitungen*, identifiers `ANNO_`, and `anno get` operates.
+- `--format periodical`: *Zeitschriften*, identifiers `ANNOP_`. `anno get` refuses them, and `snippets` is the only method of access.
 
 Both values are useful. Use `--format newspaper` when you intend to download and read pages. Use `--format periodical` to go directly to the illustrated, satirical and trade weekly papers. On this subject those papers frequently hold the richest material, and a search of 1385 mostly-newspaper results in relevance order would hide them.
 
@@ -102,9 +102,9 @@ The Austrian OCR is Fraktur, and it fails in ways that are specific enough to le
 
 **Letterspacing destroys names, and it gives no message.** This is the largest problem. It loses results. It does not add incorrect results, so it never announces itself. German typography of the 19th century gave emphasis to personal names with letterspacing (*Sperrsatz*), and the OCR reads each letter as a separate token. On one 1884 page of the *Wiener Salonblatt*, real text becomes:
 
-- `S ch l e s i n g e r` — Max Schlesinger, the author of the article
-- `S cb ü n b c r g e r` — the pianist Schönberger
-- `R o f e` and `R o s e` — the violinist Rose, in two different forms
+- `S ch l e s i n g e r`: Max Schlesinger, the author of the article
+- `S cb ü n b c r g e r`: the pianist Schönberger
+- `R o f e` and `R o s e`: the violinist Rose, in two different forms
 
 A search for `Schlesinger` does not find that page. The defence is to expect this. When a search for a person gives very few results, search instead for a distinctive word from the same context that has no letterspacing (`Gedankenleser`, the theatre, the city). Then read the page. Wildcards help with a prefix (`Hanuss*`), but they cannot cross the spaces that the OCR inserted.
 
@@ -140,18 +140,7 @@ A search for `Schlesinger` does not find that page. The defence is to expect thi
 
   **Stop all requests to ANNO.** This is a fault in the tool. It is not a temporary failure, and it is not a problem with your search. A second attempt and a new query both waste requests.
 
-  **Tell the user that the source is not available.** Write this in each report. A search that quietly omits a source is worse than a search that reports the omission.
-
-  Then correct the fault if you can. Do these steps:
-
-  1. Fetch `https://anno.onb.ac.at/anno-suche`.
-  2. Find the `main-<HASH>.js` bundle that the page loads. The hash changes at each release.
-  3. Find `apiUrl` in that bundle. Read the `/search/` paths near `apiUrl`.
-  4. Change `SEARCH_BASE_URL` in `client.py` of `anno-mcp`.
-  5. Do one live search to confirm the correction.
-  6. **Commit the correction to the anno-mcp repository**, so that the next session does not do this work again.
-
-  The error message repeats these steps.
+  Tell the user that the source is not available, and write the problem to `cli-feedback.md` with the error text. Do not change the client during the research: the user gets it repaired between runs. Continue with DDB and the other sources, and record in each report that you did not search ANNO.
 - Use `--refresh` to replace a copy in the cache that you have a reason to doubt.
 
 ## Cost

@@ -674,20 +674,9 @@ class AnnoClient:
                 "serving the app's HTML shell with HTTP 200 instead of a 404.\n"
                 "\n"
                 "Retrying will not help, and neither will rewording the search. "
-                "If you are an agent that hit this mid-research:\n"
-                "  1. Stop querying ANNO and tell the user what happened — the "
-                "source is unavailable until the client is fixed, so any report "
-                "you write must say ANNO was not searched.\n"
-                "  2. Re-derive the endpoints: fetch https://anno.onb.ac.at/anno-suche, "
-                "find the hashed bundle it loads (main-<HASH>.js), and search it "
-                "for `apiUrl` and the /search/ paths near it.\n"
-                "  3. Fix SEARCH_BASE_URL (and the /search/complex, /search/snippet "
-                "paths that hang off it) in this client's client.py, verify with "
-                "one live search, and commit the fix to the anno-mcp repository so "
-                "the next session does not rediscover it.\n"
-                "\n"
-                "This message is the drift signal described in anno-mcp's "
-                "CLAUDE.md; there is no other symptom to look for."
+                "Stop querying ANNO, tell the user, and record in any report that "
+                "ANNO was not searched. The repair steps are in the "
+                "\"Endpoint drift\" item of anno-mcp's CLAUDE.md."
             )
 
     async def _rate_limited_get(self, url: str, **kwargs: Any) -> httpx.Response:
